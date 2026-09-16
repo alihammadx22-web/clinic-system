@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Segoe UI", Arial, sans-serif;
+  --font-mono: "Cascadia Code", Consolas, monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+@keyframes clinic-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.99);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes clinic-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 24px 60px rgba(39, 95, 123, 0.14),
+      0 0 0 0 rgba(0, 127, 115, 0.18);
+  }
+
+  50% {
+    box-shadow:
+      0 24px 60px rgba(39, 95, 123, 0.14),
+      0 0 0 12px rgba(0, 127, 115, 0);
+  }
+}
+
+.doctor-enter {
+  animation: clinic-fade-up 460ms ease-out both;
+}
+
+.doctor-breathe {
+  animation: clinic-breathe 2.8s ease-in-out infinite;
+}
+
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button, select { cursor: pointer; }
+::selection { background: #c6e5e7; color: #0c3440; }
+
+@media (prefers-reduced-motion: reduce) {
+  .doctor-enter,
+  .doctor-breathe {
+    animation: none;
+  }
+}
