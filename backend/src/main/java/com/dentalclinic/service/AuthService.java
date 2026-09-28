@@ -51,6 +51,10 @@ public class AuthService {
             throw new ResponseStatusException(UNAUTHORIZED, "Invalid email or password");
         }
 
+        if ("PATIENT".equals(user.getRole())) {
+            throw new ResponseStatusException(UNAUTHORIZED, "Invalid email or password");
+        }
+
         Instant issuedAt = Instant.now();
         Instant expiresAt = issuedAt.plusSeconds(expiresInSeconds);
         JwtClaimsSet claims = JwtClaimsSet.builder()

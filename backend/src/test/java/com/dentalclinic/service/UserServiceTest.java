@@ -6,21 +6,16 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.dentalclinic.model.User;
 import com.dentalclinic.repository.UserRepository;
-import com.dentalclinic.service.UserService.RegisterRequest;
 import com.dentalclinic.service.UserService.UserRequest;
 
 class UserServiceTest {
@@ -32,36 +27,6 @@ class UserServiceTest {
     void setUp() {
         userRepository = org.mockito.Mockito.mock(UserRepository.class);
         userService = new UserService(userRepository, new BCryptPasswordEncoder());
-    }
-
-    @Test
-    void registerAlwaysCreatesPatientAndHashesPassword() {
-        when(userRepository.findByEmail("patient@example.com")).thenReturn(Optional.empty());
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
-            User user = invocation.getArgument(0);
-            user.setCreatedAt(Instant.now());
-            user.setUpdatedAt(Instant.now());
-            return user;
-        });
-
-        userService.register(new RegisterRequest(
-                "Patient One",
-                "patient@example.com",
-                "555-0100",
-                "secret123",
-                null,
-                "female",
-                null,
-                null
-        ));
-
-        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
-        verify(userRepository).save(userCaptor.capture());
-        User saved = userCaptor.getValue();
-
-        assertThat(saved.getRole()).isEqualTo("PATIENT");
-        assertThat(saved.getPasswordHash()).isNotEqualTo("secret123");
-        assertThat(new BCryptPasswordEncoder().matches("secret123", saved.getPasswordHash())).isTrue();
     }
 
     @Test
@@ -110,31 +75,6 @@ class UserServiceTest {
         assertThatThrownBy(() -> userService.create(request))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Email is already in use");
-    }
-
-    @Test
-    void doctorCanCreatePatientOnly() {
-        UserRequest request = new UserRequest(
-                "New Doctor",
-                "newdoctor@example.com",
-                "555-0104",
-                "secret123",
-                "DOCTOR",
-                null,
-                null,
-                null,
-                null,
-                true
-        );
-        UsernamePasswordAuthenticationToken doctor = new UsernamePasswordAuthenticationToken(
-                "doctor@example.com",
-                null,
-                List.of(new SimpleGrantedAuthority("ROLE_DOCTOR"))
-        );
-
-        assertThatThrownBy(() -> userService.create(request, doctor))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("Doctors can create PATIENT users only");
     }
 
     @Test

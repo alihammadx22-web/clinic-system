@@ -75,6 +75,24 @@ class AuthServiceTest {
                 .hasMessageContaining("Invalid email or password");
     }
 
+    @Test
+    void loginRejectsPatientAccounts() {
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .fullName("Patient User")
+                .email("patient@example.com")
+                .phone("555-0101")
+                .passwordHash(passwordEncoder.encode("secret123"))
+                .role("PATIENT")
+                .active(true)
+                .build();
+        when(userRepository.findByEmail("patient@example.com")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> authService.login(new LoginRequest("patient@example.com", "secret123")))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Invalid email or password");
+    }
+
     private Jwt token(JwtClaimsSet claims) {
         return new Jwt(
                 "test.jwt.token",

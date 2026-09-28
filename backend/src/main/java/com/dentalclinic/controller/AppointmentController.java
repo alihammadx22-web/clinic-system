@@ -58,8 +58,12 @@ public class AppointmentController {
     }
 
     @PutMapping("/{id}/status")
-    public AppointmentResponse updateStatus(@PathVariable UUID id, @Valid @RequestBody StatusRequest request) {
-        return appointmentService.updateStatus(id, request);
+    public AppointmentResponse updateStatus(
+            @PathVariable UUID id,
+            @Valid @RequestBody StatusRequest request,
+            Authentication authentication
+    ) {
+        return appointmentService.updateStatus(id, request, authentication);
     }
 
     @DeleteMapping("/{id}")

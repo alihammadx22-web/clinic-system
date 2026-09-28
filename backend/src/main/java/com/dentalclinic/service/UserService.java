@@ -45,14 +45,6 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public List<UserResponse> findAll(Authentication authentication) {
-        if (hasRole(authentication, "PATIENT")) {
-            User currentUser = findUser(UUID.fromString(authentication.getName()));
-            List<UserResponse> doctors = userRepository.findByRoleAndActiveTrueOrderByFullNameAsc("DOCTOR").stream()
-                    .map(UserResponse::from)
-                    .toList();
-            return java.util.stream.Stream.concat(java.util.stream.Stream.of(UserResponse.from(currentUser)), doctors.stream())
-                    .toList();
-        }
         return userRepository.findAll().stream()
                 .map(UserResponse::from)
                 .toList();
@@ -70,7 +62,6 @@ public class UserService {
     public UserResponse create(UserRequest request, Authentication authentication) {
         String role = normalizeRole(request.role());
         requireValidRole(role);
-        requireDoctorCreatesPatientOnly(authentication, role);
         if ("PATIENT".equals(role)) {
             requirePatientDemographics(request);
         } else {
@@ -89,25 +80,6 @@ public class UserService {
                 .notes(request.notes())
                 .address(request.address())
                 .active(request.active() == null || request.active())
-                .build();
-
-        return UserResponse.from(userRepository.save(user));
-    }
-
-    public UserResponse register(RegisterRequest request) {
-        requireUniqueEmail(request.email(), null);
-
-        User user = User.builder()
-                .fullName(request.fullName())
-                .email(request.email())
-                .phone(request.phone())
-                .passwordHash(passwordEncoder.encode(requirePassword(request.password())))
-                .role("PATIENT")
-                .age(request.age())
-                .gender(normalizeOptional(request.gender()))
-                .notes(request.notes())
-                .address(request.address())
-                .active(true)
                 .build();
 
         return UserResponse.from(userRepository.save(user));
@@ -188,28 +160,9 @@ public class UserService {
         }
     }
 
-    private void requireDoctorCreatesPatientOnly(Authentication authentication, String requestedRole) {
-        if (authentication == null) {
-            return;
-        }
-        boolean doctor = authentication.getAuthorities().stream()
-                .anyMatch(authority -> authority.getAuthority().equals("ROLE_DOCTOR"));
-        boolean reception = authentication.getAuthorities().stream()
-                .anyMatch(authority -> authority.getAuthority().equals("ROLE_RECEPTION"));
-        if (doctor && !reception && !"PATIENT".equals(requestedRole)) {
-            throw new ResponseStatusException(BAD_REQUEST, "Doctors can create PATIENT users only");
-        }
-    }
-
     private void requireCanUpdate(Authentication authentication, UUID userId, String requestedRole) {
         if (authentication == null || hasRole(authentication, "RECEPTION")) {
             return;
-        }
-        if (hasRole(authentication, "PATIENT")) {
-            UUID currentUserId = UUID.fromString(authentication.getName());
-            if (currentUserId.equals(userId) && "PATIENT".equals(requestedRole)) {
-                return;
-            }
         }
         throw new ResponseStatusException(FORBIDDEN, "Not allowed to update this user");
     }
@@ -285,18 +238,6 @@ public class UserService {
             String notes,
             String address,
             Boolean active
-    ) {
-    }
-
-    public record RegisterRequest(
-            @NotBlank @Size(max = 160) String fullName,
-            @NotBlank @Email @Size(max = 180) String email,
-            @NotBlank @Size(max = 40) String phone,
-            @NotBlank @Size(min = 6, max = 100) String password,
-            Integer age,
-            @Size(max = 20) String gender,
-            String notes,
-            String address
     ) {
     }
 

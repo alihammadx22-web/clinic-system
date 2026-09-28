@@ -54,8 +54,8 @@ public class AppointmentService {
 
     @Transactional(readOnly = true)
     public List<AppointmentResponse> findAll(Authentication authentication) {
-        if (hasRole(authentication, "PATIENT")) {
-            return appointmentRepository.findByPatient_IdOrderByAppointmentDateDescStartTimeDesc(currentUserId(authentication)).stream()
+        if (hasRole(authentication, "DOCTOR")) {
+            return appointmentRepository.findByDoctor_IdOrderByAppointmentDateDescStartTimeDesc(currentUserId(authentication)).stream()
                     .map(AppointmentResponse::from)
                     .toList();
         }
@@ -74,7 +74,6 @@ public class AppointmentService {
     public AppointmentResponse create(AppointmentRequest request, Authentication authentication) {
         User patient = requirePatient(request.patientId());
         User doctor = requireDoctor(request.doctorId());
-        requirePatientCreatesOwnAppointment(patient.getId(), authentication);
         validateSlot(request.appointmentDate(), request.startTime());
         requireInsideDoctorSchedule(doctor.getId(), request.appointmentDate(), request.startTime());
         requireOpenSlot(doctor.getId(), request.appointmentDate(), request.startTime());
@@ -112,8 +111,9 @@ public class AppointmentService {
         return AppointmentResponse.from(appointmentRepository.save(appointment));
     }
 
-    public AppointmentResponse updateStatus(UUID id, StatusRequest request) {
+    public AppointmentResponse updateStatus(UUID id, StatusRequest request, Authentication authentication) {
         Appointment appointment = findAppointment(id);
+        requireCanView(appointment, authentication);
         String status = normalizeStatus(request.status());
         requireValidStatus(status);
         appointment.setStatus(status);
@@ -182,15 +182,9 @@ public class AppointmentService {
         return status == null ? null : status.trim().toUpperCase();
     }
 
-    private void requirePatientCreatesOwnAppointment(UUID patientId, Authentication authentication) {
-        if (hasRole(authentication, "PATIENT") && !patientId.equals(currentUserId(authentication))) {
-            throw new ResponseStatusException(FORBIDDEN, "Patients can create their own appointments only");
-        }
-    }
-
     private void requireCanView(Appointment appointment, Authentication authentication) {
-        if (hasRole(authentication, "PATIENT") && !appointment.getPatient().getId().equals(currentUserId(authentication))) {
-            throw new ResponseStatusException(FORBIDDEN, "Patients can view their own appointments only");
+        if (hasRole(authentication, "DOCTOR") && !appointment.getDoctor().getId().equals(currentUserId(authentication))) {
+            throw new ResponseStatusException(FORBIDDEN, "Doctors can view their own appointments only");
         }
     }
 

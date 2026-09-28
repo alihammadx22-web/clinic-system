@@ -106,22 +106,6 @@ class AppointmentServiceTest {
     }
 
     @Test
-    void patientCanCreateOwnAppointmentOnly() {
-        UUID patientId = UUID.randomUUID();
-        UUID otherPatientId = UUID.randomUUID();
-        UUID doctorId = UUID.randomUUID();
-        AppointmentRequest request = request(otherPatientId, doctorId, "2026-09-14", "09:00");
-
-        when(userRepository.findByIdAndRole(otherPatientId, "PATIENT")).thenReturn(Optional.of(patient(otherPatientId)));
-        when(userRepository.findByIdAndRole(doctorId, "DOCTOR")).thenReturn(Optional.of(doctor(doctorId)));
-
-        assertThatThrownBy(() -> appointmentService.create(request, patientAuth(patientId)))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("Patients can create their own appointments only");
-        verify(appointmentRepository, never()).save(any());
-    }
-
-    @Test
     void createRejectsNonThirtyMinuteSlot() {
         UUID patientId = UUID.randomUUID();
         UUID doctorId = UUID.randomUUID();
@@ -202,13 +186,42 @@ class AppointmentServiceTest {
     }
 
     @Test
+    void rescheduleRejectsBookedDoctorSlot() {
+        UUID appointmentId = UUID.randomUUID();
+        UUID patientId = UUID.randomUUID();
+        UUID doctorId = UUID.randomUUID();
+        Appointment appointment = appointment(appointmentId, patientId, doctorId, "2026-09-14", "09:00");
+        RescheduleRequest request = new RescheduleRequest(
+                doctorId,
+                LocalDate.parse("2026-09-14"),
+                LocalTime.parse("09:30"),
+                "Updated notes"
+        );
+
+        when(appointmentRepository.findById(appointmentId)).thenReturn(Optional.of(appointment));
+        when(userRepository.findByIdAndRole(doctorId, "DOCTOR")).thenReturn(Optional.of(doctor(doctorId)));
+        when(doctorScheduleRepository.findByDoctor_IdAndDayOfWeek(doctorId, 1))
+                .thenReturn(Optional.of(schedule(doctorId, 1, "09:00", "17:00")));
+        when(appointmentRepository.existsByDoctor_IdAndAppointmentDateAndStartTime(
+                doctorId,
+                LocalDate.parse("2026-09-14"),
+                LocalTime.parse("09:30")
+        )).thenReturn(true);
+
+        assertThatThrownBy(() -> appointmentService.reschedule(appointmentId, request))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Doctor already has an appointment at this time");
+        verify(appointmentRepository, never()).save(any());
+    }
+
+    @Test
     void updateStatusRejectsInvalidStatus() {
         UUID appointmentId = UUID.randomUUID();
         Appointment appointment = appointment(appointmentId, UUID.randomUUID(), UUID.randomUUID(), "2026-09-14", "09:00");
 
         when(appointmentRepository.findById(appointmentId)).thenReturn(Optional.of(appointment));
 
-        assertThatThrownBy(() -> appointmentService.updateStatus(appointmentId, new StatusRequest("NO_SHOW")))
+        assertThatThrownBy(() -> appointmentService.updateStatus(appointmentId, new StatusRequest("NO_SHOW"), reception()))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Status must be SCHEDULED, CHECKED_IN, IN_PROGRESS, COMPLETED, or CANCELLED");
         verify(appointmentRepository, never()).save(any());
@@ -222,36 +235,36 @@ class AppointmentServiceTest {
         when(appointmentRepository.findById(appointmentId)).thenReturn(Optional.of(appointment));
         when(appointmentRepository.save(any(Appointment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        appointmentService.updateStatus(appointmentId, new StatusRequest("checked_in"));
+        appointmentService.updateStatus(appointmentId, new StatusRequest("checked_in"), reception());
 
         assertThat(appointment.getStatus()).isEqualTo("CHECKED_IN");
         verify(appointmentRepository).save(appointment);
     }
 
     @Test
-    void findAllReturnsOwnAppointmentsForPatients() {
-        UUID patientId = UUID.randomUUID();
+    void findAllReturnsOwnAppointmentsForDoctors() {
+        UUID doctorId = UUID.randomUUID();
 
-        when(appointmentRepository.findByPatient_IdOrderByAppointmentDateDescStartTimeDesc(patientId)).thenReturn(List.of());
+        when(appointmentRepository.findByDoctor_IdOrderByAppointmentDateDescStartTimeDesc(doctorId)).thenReturn(List.of());
 
-        appointmentService.findAll(patientAuth(patientId));
+        appointmentService.findAll(doctorAuth(doctorId));
 
-        verify(appointmentRepository).findByPatient_IdOrderByAppointmentDateDescStartTimeDesc(patientId);
+        verify(appointmentRepository).findByDoctor_IdOrderByAppointmentDateDescStartTimeDesc(doctorId);
         verify(appointmentRepository, never()).findAll();
     }
 
     @Test
-    void patientCannotViewAnotherPatientsAppointment() {
-        UUID patientId = UUID.randomUUID();
-        UUID otherPatientId = UUID.randomUUID();
+    void doctorCannotViewAnotherDoctorsAppointment() {
+        UUID doctorId = UUID.randomUUID();
+        UUID otherDoctorId = UUID.randomUUID();
         UUID appointmentId = UUID.randomUUID();
-        Appointment appointment = appointment(appointmentId, otherPatientId, UUID.randomUUID(), "2026-09-14", "09:00");
+        Appointment appointment = appointment(appointmentId, UUID.randomUUID(), otherDoctorId, "2026-09-14", "09:00");
 
         when(appointmentRepository.findById(appointmentId)).thenReturn(Optional.of(appointment));
 
-        assertThatThrownBy(() -> appointmentService.findById(appointmentId, patientAuth(patientId)))
+        assertThatThrownBy(() -> appointmentService.findById(appointmentId, doctorAuth(doctorId)))
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("Patients can view their own appointments only");
+                .hasMessageContaining("Doctors can view their own appointments only");
     }
 
     private AppointmentRequest request(UUID patientId, UUID doctorId, String date, String startTime) {
@@ -318,11 +331,11 @@ class AppointmentServiceTest {
         );
     }
 
-    private Authentication patientAuth(UUID patientId) {
+    private Authentication doctorAuth(UUID doctorId) {
         return new UsernamePasswordAuthenticationToken(
-                patientId.toString(),
+                doctorId.toString(),
                 null,
-                List.of(new SimpleGrantedAuthority("ROLE_PATIENT"))
+                List.of(new SimpleGrantedAuthority("ROLE_DOCTOR"))
         );
     }
 }

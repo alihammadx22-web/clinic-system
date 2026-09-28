@@ -1,4 +1,3 @@
-import { createMockClinicData } from "./mock-data";
 import type {
   Appointment,
   AppointmentInput,
@@ -7,14 +6,11 @@ import type {
   CaseStatus,
   CaseType,
   ClinicData,
-  ClinicSettings,
   DentalCase,
   Doctor,
   ExceptionInput,
   Patient,
   PatientInput,
-  Payment,
-  PaymentInput,
   PortalRole,
 } from "./types";
 
@@ -41,7 +37,6 @@ type ApiLoginResponse = { token: string; user: ApiUser };
 type ApiSchedule = { id: string; doctorId: string; dayOfWeek: number; startTime: string; endTime: string };
 type ApiAppointment = { id: string; patientId: string; doctorId: string; appointmentDate: string; startTime: string; status: string; notes: string | null };
 type ApiCase = { id: string; patientId: string; doctorId: string; caseType: string; notes: string | null; status: string; createdAt: string | null; completedAt: string | null };
-type ApiPayment = { id: string; appointmentId: string; patientId: string; doctorId: string; amount: number; method: string; paidAt: string };
 
 export type SessionUser = { id: string; name: string; email: string; role: PortalRole };
 
@@ -65,7 +60,7 @@ export const authSession = {
   },
   saveSession(token: string, user: SessionUser) {
     window.localStorage.setItem(TOKEN_KEY, token);
-    window.localStorage.setItem(USER_KEY, JSON.stringify({ ...user, role: normalizeRole(user.role) }));
+    window.localStorage.setItem(USER_KEY, JSON.stringify(user));
   },
   clear() {
     window.localStorage.removeItem(TOKEN_KEY);
@@ -84,25 +79,17 @@ export const apiAuth = {
     authSession.saveSession(response.token, user);
     return { token: response.token, user };
   },
-  async register(fullName: string, email: string, phone: string, password: string) {
-    await request<ApiUser>("/users/register", {
-      method: "POST",
-      body: { fullName, email, phone, password, age: null, gender: null, notes: null, address: null },
-      auth: false,
-    });
-  },
 };
 
 export const clinicApi = {
   async load(): Promise<ClinicData> {
-    const [users, schedules, appointments, cases, payments] = await Promise.all([
+    const [users, schedules, appointments, cases] = await Promise.all([
       request<ApiUser[]>("/users"),
       request<ApiSchedule[]>("/doctor-schedules"),
       request<ApiAppointment[]>("/appointments"),
       request<ApiCase[]>("/dental-cases"),
-      request<ApiPayment[]>("/payments"),
     ]);
-    return toClinicData(users, schedules, appointments, cases, payments);
+    return toClinicData(users, schedules, appointments, cases);
   },
 
   async addPatient(input: PatientInput) {
@@ -121,6 +108,11 @@ export const clinicApi = {
     return this.load();
   },
 
+  async deletePatient(id: string) {
+    await request<void>(`/users/${id}`, { method: "DELETE" });
+    return this.load();
+  },
+
   async addAppointment(input: AppointmentInput) {
     const appointment = await request<ApiAppointment>("/appointments", {
       method: "POST",
@@ -129,7 +121,7 @@ export const clinicApi = {
         doctorId: input.doctorId,
         appointmentDate: input.date,
         startTime: input.time,
-        notes: appointmentNotes(input.reason, input.notes),
+        notes: input.notes,
       },
     });
     return { data: await this.load(), appointment: toAppointment(appointment) };
@@ -142,7 +134,7 @@ export const clinicApi = {
         doctorId: appointment.doctorId,
         appointmentDate: appointment.date,
         startTime: appointment.time,
-        notes: appointmentNotes(appointment.reason, appointment.notes),
+        notes: appointment.notes,
       },
     });
     return this.load();
@@ -185,34 +177,27 @@ export const clinicApi = {
     return this.load();
   },
 
-  async addPayment(input: PaymentInput) {
-    await request<ApiPayment>("/payments", {
+
+  async addDoctor(doctor: Doctor) {
+    const created = await request<ApiUser>("/users", {
       method: "POST",
-      body: { appointmentId: input.appointmentId, amount: input.amount, method: input.method },
+      body: toDoctorUserRequest(doctor, true),
     });
+    await syncDoctorSchedules(created.id, doctor);
     return this.load();
   },
 
   async editDoctor(doctor: Doctor) {
-    const existing = await request<ApiSchedule[]>(`/doctor-schedules/doctor/${doctor.id}`);
-    const byDay = new Map(existing.map((item) => [item.dayOfWeek, item]));
+    await request<ApiUser>(`/users/${doctor.id}`, {
+      method: "PUT",
+      body: toDoctorUserRequest(doctor, false),
+    });
+    await syncDoctorSchedules(doctor.id, doctor);
+    return this.load();
+  },
 
-    await Promise.all(
-      doctor.workingDays.map((dayOfWeek) => {
-        const body = { doctorId: doctor.id, dayOfWeek, startTime: doctor.startTime, endTime: doctor.endTime };
-        const current = byDay.get(dayOfWeek);
-        return current
-          ? request<ApiSchedule>(`/doctor-schedules/${current.id}`, { method: "PUT", body })
-          : request<ApiSchedule>("/doctor-schedules", { method: "POST", body });
-      })
-    );
-
-    await Promise.all(
-      existing
-        .filter((item) => !doctor.workingDays.includes(item.dayOfWeek))
-        .map((item) => request<void>(`/doctor-schedules/${item.id}`, { method: "DELETE" }))
-    );
-
+  async deleteDoctor(id: string) {
+    await request<void>(`/users/${id}`, { method: "DELETE" });
     return this.load();
   },
 
@@ -221,10 +206,6 @@ export const clinicApi = {
     return this.load();
   },
 
-  async updateSettings(settings: ClinicSettings) {
-    void settings;
-    return this.load();
-  },
 };
 
 async function request<T>(path: string, options: { method?: string; body?: unknown; auth?: boolean } = {}): Promise<T> {
@@ -257,21 +238,18 @@ async function errorMessage(response: Response) {
   }
 }
 
-function toClinicData(users: ApiUser[], schedules: ApiSchedule[], appointments: ApiAppointment[], cases: ApiCase[], payments: ApiPayment[]): ClinicData {
-  const defaults = createMockClinicData();
+function toClinicData(users: ApiUser[], schedules: ApiSchedule[], appointments: ApiAppointment[], cases: ApiCase[]): ClinicData {
   const currentUser = authSession.getUser();
   const patients = currentUserFirst(users.filter((user) => user.role === "PATIENT"), currentUser?.id).map(toPatient);
   const doctors = currentUserFirst(users.filter((user) => user.role === "DOCTOR"), currentUser?.id)
     .map((user, index) => toDoctor(user, index, schedules));
 
   return {
-    settings: defaults.settings,
     exceptions: [],
     patients,
     doctors,
     appointments: appointments.map(toAppointment),
     cases: cases.map(toCase),
-    payments: payments.map(toPayment),
   };
 }
 
@@ -289,11 +267,10 @@ function toPatient(user: ApiUser): Patient {
     id: user.id,
     name: user.fullName,
     phone: user.phone,
-    email: user.email ?? "",
     age: user.age ?? 0,
-    gender: toTitle(user.gender) as Patient["gender"] || "Other",
     address: user.address ?? "",
     medicalNotes: user.notes ?? "",
+    active: user.active,
     createdAt: dateOnly(user.createdAt),
   };
 }
@@ -316,7 +293,6 @@ function toDoctor(user: ApiUser, index: number, schedules: ApiSchedule[]): Docto
 }
 
 function toAppointment(item: ApiAppointment): Appointment {
-  const [reason, notes] = splitAppointmentNotes(item.notes);
   return {
     id: item.id,
     patientId: item.patientId,
@@ -324,8 +300,7 @@ function toAppointment(item: ApiAppointment): Appointment {
     date: item.appointmentDate,
     time: stripSeconds(item.startTime),
     duration: 30,
-    reason,
-    notes,
+    notes: item.notes ?? "",
     status: toUiAppointmentStatus(item.status),
     createdAt: item.appointmentDate,
   };
@@ -344,41 +319,59 @@ function toCase(item: ApiCase): DentalCase {
   };
 }
 
-function toPayment(item: ApiPayment): Payment {
-  return {
-    id: item.id,
-    appointmentId: item.appointmentId,
-    patientId: item.patientId,
-    amount: Number(item.amount),
-    method: item.method === "CASH" ? "Cash" : "Card",
-    note: "",
-    paidAt: item.paidAt,
-  };
-}
 
 function toUserRequest(input: PatientInput | Patient, role: ApiRole) {
   return {
     fullName: input.name,
-    email: "email" in input ? input.email || null : null,
+    email: null,
     phone: input.phone,
     password: null,
     role,
     age: input.age,
-    gender: input.gender,
+    gender: null,
     notes: input.medicalNotes,
     address: input.address || null,
-    active: true,
+    active: input.active,
   };
 }
 
-function appointmentNotes(reason: string, notes: string) {
-  return notes ? `${reason}\n${notes}` : reason;
+function toDoctorUserRequest(input: Doctor, creating: boolean) {
+  const name = input.name.replace(/^Dr\.?\s*/i, "").trim();
+  return {
+    fullName: name || input.name,
+    email: input.email,
+    phone: input.phone,
+    password: creating ? input.password : input.password || null,
+    role: "DOCTOR",
+    age: null,
+    gender: null,
+    notes: input.specialty || "General Dentistry",
+    address: null,
+    active: input.active,
+  };
 }
 
-function splitAppointmentNotes(notes: string | null) {
-  const lines = (notes ?? "").split("\n");
-  return [lines[0] || "Appointment", lines.slice(1).join("\n")] as const;
+async function syncDoctorSchedules(doctorId: string, doctor: Doctor) {
+  const existing = await request<ApiSchedule[]>(`/doctor-schedules/doctor/${doctorId}`);
+  const byDay = new Map(existing.map((item) => [item.dayOfWeek, item]));
+
+  await Promise.all(
+    doctor.workingDays.map((dayOfWeek) => {
+      const body = { doctorId, dayOfWeek, startTime: doctor.startTime, endTime: doctor.endTime };
+      const current = byDay.get(dayOfWeek);
+      return current
+        ? request<ApiSchedule>(`/doctor-schedules/${current.id}`, { method: "PUT", body })
+        : request<ApiSchedule>("/doctor-schedules", { method: "POST", body });
+    })
+  );
+
+  await Promise.all(
+    existing
+      .filter((item) => !doctor.workingDays.includes(item.dayOfWeek))
+      .map((item) => request<void>(`/doctor-schedules/${item.id}`, { method: "DELETE" }))
+  );
 }
+
 
 function toApiAppointmentStatus(status: AppointmentStatus) {
   return status.trim().toUpperCase().replaceAll(" ", "_");
@@ -411,30 +404,29 @@ function toUiCaseType(caseType: string): CaseType {
 }
 
 function toSessionUser(user: ApiUser): SessionUser {
-  return { id: user.id, name: user.fullName, email: user.email ?? "", role: normalizeRole(user.role) };
+  const role = normalizeRole(user.role);
+  if (!role) throw new Error("Only reception and doctor users can sign in.");
+  return { id: user.id, name: user.fullName, email: user.email ?? "", role };
 }
 
 function normalizeSessionUser(value: unknown): SessionUser | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Partial<SessionUser>;
   if (!item.id || !item.name || !item.role) return null;
+  const role = normalizeRole(String(item.role));
+  if (!role) return null;
   return {
     id: String(item.id),
     name: String(item.name),
     email: item.email ? String(item.email) : "",
-    role: normalizeRole(item.role),
+    role,
   };
 }
 
-function normalizeRole(role: string): PortalRole {
+function normalizeRole(role: string): PortalRole | null {
   const normalized = role.trim().toLowerCase();
-  if (normalized === "doctor" || normalized === "patient") return normalized;
-  return "reception";
-}
-
-function toTitle(value: string | null) {
-  if (!value) return "";
-  return value.slice(0, 1).toUpperCase() + value.slice(1).toLowerCase();
+  if (normalized === "doctor" || normalized === "reception") return normalized;
+  return null;
 }
 
 function stripSeconds(value: string) {

@@ -68,16 +68,6 @@ This document captures the frontend data model and API surface needed when repla
 
 No tooth numbers, tooth charts, odontograms, tooth surfaces, or complex treatment plans are required.
 
-### Payment
-
-- `id`
-- `appointmentId`
-- `patientId`
-- `amount`
-- `method`: `Cash`, `Card`
-- `note`
-- `paidAt`
-
 ### Schedule Exception
 
 - `id`
@@ -87,18 +77,6 @@ No tooth numbers, tooth charts, odontograms, tooth surfaces, or complex treatmen
 - optional `startTime`
 - optional `endTime`
 - `note`
-
-### Clinic Settings
-
-- `name`
-- `phone`
-- `email`
-- `address`
-- `openingTime`
-- `closingTime`
-- `primaryColor`
-
-## Required API Surface
 
 ### Health
 
@@ -160,19 +138,6 @@ Expected query support: filter by patient, doctor, date, status, and text search
 - `POST /dental-cases/{id}/complete`
 
 Expected query support: filter by patient, doctor, status, and case type.
-
-### Payments
-
-- `GET /payments`
-- `GET /payments/{id}`
-- `POST /payments`
-
-Expected query support: filter by patient, appointment, method, and text search.
-
-### Clinic
-
-- `GET /clinic/settings`
-- `PUT /clinic/settings`
 
 ## Response Shape Recommendation
 

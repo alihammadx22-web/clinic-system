@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dentalclinic.service.UserService;
-import com.dentalclinic.service.UserService.RegisterRequest;
 import com.dentalclinic.service.UserService.UserRequest;
 import com.dentalclinic.service.UserService.UserResponse;
 
@@ -59,9 +58,4 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/register")
-    public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
-        UserResponse user = userService.register(request);
-        return ResponseEntity.created(URI.create("/api/users/" + user.id())).body(user);
-    }
 }

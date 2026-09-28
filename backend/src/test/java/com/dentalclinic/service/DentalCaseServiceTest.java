@@ -8,16 +8,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.dentalclinic.model.DentalCase;
@@ -161,44 +157,6 @@ class DentalCaseServiceTest {
     }
 
     @Test
-    void findAllReturnsOwnCasesForPatients() {
-        UUID patientId = UUID.randomUUID();
-
-        when(dentalCaseRepository.findByPatient_IdOrderByCreatedAtDesc(patientId)).thenReturn(List.of());
-
-        dentalCaseService.findAll(patientAuth(patientId));
-
-        verify(dentalCaseRepository).findByPatient_IdOrderByCreatedAtDesc(patientId);
-        verify(dentalCaseRepository, never()).findAll();
-    }
-
-    @Test
-    void patientCannotViewAnotherPatientsCase() {
-        UUID patientId = UUID.randomUUID();
-        UUID otherPatientId = UUID.randomUUID();
-        UUID caseId = UUID.randomUUID();
-        DentalCase dentalCase = dentalCase(caseId, otherPatientId, UUID.randomUUID(), "OPEN", null);
-
-        when(dentalCaseRepository.findById(caseId)).thenReturn(Optional.of(dentalCase));
-
-        assertThatThrownBy(() -> dentalCaseService.findById(caseId, patientAuth(patientId)))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("Patients can view their own cases only");
-    }
-
-    @Test
-    void patientCannotQueryAnotherPatientsCases() {
-        UUID patientId = UUID.randomUUID();
-        UUID otherPatientId = UUID.randomUUID();
-
-        when(userRepository.findByIdAndRole(otherPatientId, "PATIENT")).thenReturn(Optional.of(patient(otherPatientId)));
-
-        assertThatThrownBy(() -> dentalCaseService.findByPatientId(otherPatientId, patientAuth(patientId)))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("Patients can view their own cases only");
-    }
-
-    @Test
     void deleteRemovesExistingCase() {
         UUID caseId = UUID.randomUUID();
         DentalCase dentalCase = dentalCase(caseId, UUID.randomUUID(), UUID.randomUUID(), "OPEN", null);
@@ -257,11 +215,4 @@ class DentalCaseServiceTest {
                 .build();
     }
 
-    private Authentication patientAuth(UUID patientId) {
-        return new UsernamePasswordAuthenticationToken(
-                patientId.toString(),
-                null,
-                List.of(new SimpleGrantedAuthority("ROLE_PATIENT"))
-        );
-    }
 }

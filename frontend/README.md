@@ -4,10 +4,9 @@ A frontend-only Next.js 16, React 19, TypeScript, and Tailwind CSS demo for a ge
 
 ## Portals
 
-- Reception: daily queue, patients, appointments, doctors and schedules, payments, and clinic settings.
+- Reception: daily queue, patients, appointments, and doctors and schedules.
 - Doctor: today’s worklist, patient history, and simple dental cases.
-- Patient: dashboard, guided booking, appointments, dental cases, and profile.
-- Authentication: login, registration, password reset, and verification demo screens.
+- Authentication: staff login for reception and doctor accounts.
 
 The header role switcher changes between all three portals. The mock service persists shared data in browser `localStorage`; it is isolated under `src/features/dental` so a Spring Boot adapter can replace it later.
 

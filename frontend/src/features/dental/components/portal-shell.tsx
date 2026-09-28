@@ -13,31 +13,22 @@ const links: Record<PortalRole, { href: string; label: string; icon: string }[]>
     { href: "/reception/appointments", label: "Appointments", icon: "calendar" },
     { href: "/reception/patients", label: "Patients", icon: "users" },
     { href: "/reception/doctors", label: "Doctors & schedules", icon: "doctor" },
-    { href: "/reception/payments", label: "Payments", icon: "card" },
-    { href: "/reception/settings", label: "Clinic settings", icon: "settings" },
   ],
   doctor: [
     { href: "/doctor", label: "Today", icon: "grid" },
     { href: "/doctor/patients", label: "Patients", icon: "users" },
     { href: "/doctor/cases", label: "Dental cases", icon: "briefcase" },
-  ],
-  patient: [
-    { href: "/patient", label: "Dashboard", icon: "grid" },
-    { href: "/patient/book", label: "Book appointment", icon: "calendar" },
-    { href: "/patient/appointments", label: "My appointments", icon: "clock" },
-    { href: "/patient/cases", label: "My dental cases", icon: "briefcase" },
-    { href: "/patient/profile", label: "Profile", icon: "user" },
-  ],
+  ]
 };
 
-const labels: Record<PortalRole, string> = { reception: "Reception portal", doctor: "Doctor portal", patient: "Patient portal" };
+const labels: Record<PortalRole, string> = { reception: "Reception portal", doctor: "Doctor portal" };
 
 export function PortalShell({ role, children }: { role: PortalRole; children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { data, notice, clearNotice, signOut } = useClinic();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const currentName = role === "doctor" ? data?.doctors[0]?.name : role === "patient" ? data?.patients[0]?.name : "Reception team";
+  const currentName = role === "doctor" ? data?.doctors[0]?.name : "Reception team";
 
   function switchRole(next: PortalRole) { router.push(`/${next}`); setMobileOpen(false); }
 
@@ -45,7 +36,7 @@ export function PortalShell({ role, children }: { role: PortalRole; children: Re
     {notice && <button onClick={clearNotice} className={`fixed right-4 top-4 z-[70] flex max-w-sm items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-white shadow-xl ${notice.kind === "success" ? "bg-[#176b73]" : "bg-red-600"}`}><span className="rounded-full bg-white/20 p-1"><Icon name={notice.kind === "success" ? "check" : "alert"} className="h-4 w-4" /></span>{notice.message}</button>}
     <aside className={`fixed inset-y-0 left-0 z-40 flex w-[276px] flex-col bg-[#0c3440] text-white transition-transform duration-200 lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
       <div className="flex h-[82px] items-center justify-between border-b border-white/10 px-6">
-        <Link href={`/${role}`} className="flex items-center gap-3" onClick={() => setMobileOpen(false)}><span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-[#176b73] shadow-sm"><DentalMark /></span><span><b className="block text-[17px] tracking-tight">{data?.settings.name ?? "Dental Clinic"}</b><span className="text-[11px] font-semibold uppercase tracking-[.16em] text-white/55">{labels[role]}</span></span></Link>
+        <Link href={`/${role}`} className="flex items-center gap-3" onClick={() => setMobileOpen(false)}><span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-[#176b73] shadow-sm"><DentalMark /></span><span><b className="block text-[17px] tracking-tight">Dental Clinic</b><span className="text-[11px] font-semibold uppercase tracking-[.16em] text-white/55">{labels[role]}</span></span></Link>
         <button onClick={() => setMobileOpen(false)} className="p-2 lg:hidden" aria-label="Close menu"><Icon name="close" /></button>
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-4 pt-6">
@@ -58,7 +49,7 @@ export function PortalShell({ role, children }: { role: PortalRole; children: Re
     <div className="lg:pl-[276px]">
       <header className="sticky top-0 z-20 flex h-[82px] items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur sm:px-7 lg:px-9">
         <div className="flex items-center gap-3"><button onClick={() => setMobileOpen(true)} className="rounded-xl border border-slate-200 p-2.5 text-slate-600 lg:hidden" aria-label="Open navigation"><Icon name="menu"/></button><div className="hidden sm:block"><p className="text-xs font-semibold text-slate-400">Welcome back</p><p className="text-sm font-bold text-slate-800">{currentName}</p></div></div>
-        <div className="flex items-center gap-3"><div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1 md:flex">{(["reception", "doctor", "patient"] as PortalRole[]).map((item) => <button key={item} onClick={() => switchRole(item)} className={`rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition ${role === item ? "bg-white text-[#176b73] shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>{item}</button>)}</div><select aria-label="Switch demo role" value={role} onChange={(e) => switchRole(e.target.value as PortalRole)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 md:hidden"><option value="reception">Reception</option><option value="doctor">Doctor</option><option value="patient">Patient</option></select><span className="grid h-10 w-10 place-items-center rounded-full bg-[#dceced] text-sm font-extrabold text-[#176b73]">{currentName?.split(" ").filter((item) => !item.includes("Dr.")).slice(0,2).map((item) => item[0]).join("")}</span></div>
+        <div className="flex items-center gap-3"><div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1 md:flex">{(["reception", "doctor"] as PortalRole[]).map((item) => <button key={item} onClick={() => switchRole(item)} className={`rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition ${role === item ? "bg-white text-[#176b73] shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>{item}</button>)}</div><select aria-label="Switch demo role" value={role} onChange={(e) => switchRole(e.target.value as PortalRole)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 md:hidden"><option value="reception">Reception</option><option value="doctor">Doctor</option></select><span className="grid h-10 w-10 place-items-center rounded-full bg-[#dceced] text-sm font-extrabold text-[#176b73]">{currentName?.split(" ").filter((item) => !item.includes("Dr.")).slice(0,2).map((item) => item[0]).join("")}</span></div>
       </header>
       <main className="mx-auto max-w-[1500px] p-4 sm:p-7 lg:p-9">{children}</main>
     </div>

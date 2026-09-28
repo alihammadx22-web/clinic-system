@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { authSession, clinicApi, type SessionUser } from "./api-service";
-import type { Appointment, AppointmentInput, AppointmentStatus, CaseInput, ClinicData, ClinicSettings, DentalCase, Doctor, ExceptionInput, Patient, PatientInput, PaymentInput } from "./types";
+import type { Appointment, AppointmentInput, AppointmentStatus, CaseInput, ClinicData, DentalCase, Doctor, ExceptionInput, Patient, PatientInput } from "./types";
 
 type Notice = { kind: "success" | "error"; message: string } | null;
 type ContextValue = {
@@ -16,15 +16,16 @@ type ContextValue = {
   signIn(token: string, user: SessionUser): void;
   addPatient(input: PatientInput): Promise<Patient | null>;
   editPatient(patient: Patient): Promise<void>;
+  deletePatient(id: string): Promise<void>;
   addAppointment(input: AppointmentInput): Promise<Appointment | null>;
   editAppointment(appointment: Appointment): Promise<void>;
   setAppointmentStatus(id: string, status: AppointmentStatus): Promise<void>;
   addCase(input: CaseInput): Promise<DentalCase | null>;
   editCase(item: DentalCase): Promise<void>;
-  addPayment(input: PaymentInput): Promise<void>;
   addException(input: ExceptionInput): Promise<void>;
+  addDoctor(doctor: Doctor): Promise<void>;
   editDoctor(doctor: Doctor): Promise<void>;
-  updateSettings(settings: ClinicSettings): Promise<void>;
+  deleteDoctor(id: string): Promise<void>;
   reset(): void;
   signOut(): void;
 };
@@ -97,15 +98,16 @@ export function ClinicProvider({ children }: { children: ReactNode }) {
     },
     addPatient(input) { return commit<Patient>(() => clinicApi.addPatient(input).then((next) => ({ data: next, item: next.patients[0] })), "Patient added successfully"); },
     async editPatient(patient) { await commit(() => clinicApi.editPatient(patient), "Patient details updated"); },
+    async deletePatient(id) { await commit(() => clinicApi.deletePatient(id), "Patient deleted"); },
     addAppointment(input) { return commit<Appointment>(() => clinicApi.addAppointment(input).then((next) => ({ data: next.data, item: next.appointment })), "Appointment booked successfully"); },
     async editAppointment(appointment) { await commit(() => clinicApi.editAppointment(appointment), "Appointment rescheduled"); },
     async setAppointmentStatus(id, status) { await commit(() => clinicApi.setAppointmentStatus(id, status), status === "Cancelled" ? "Appointment cancelled" : `Appointment marked ${status.toLowerCase()}`); },
     addCase(input) { return commit<DentalCase>(() => clinicApi.addCase(input).then((next) => ({ data: next, item: next.cases[0] })), "Dental case created"); },
     async editCase(item) { await commit(() => clinicApi.editCase(item), item.status === "Completed" ? "Dental case completed" : "Dental case updated"); },
-    async addPayment(input) { await commit(() => clinicApi.addPayment(input), "Payment recorded successfully"); },
     async addException(input) { await commit(() => clinicApi.addException(input), "Schedule exception added"); },
-    async editDoctor(doctor) { await commit(() => clinicApi.editDoctor(doctor), "Doctor schedule updated"); },
-    async updateSettings(settings) { await commit(() => clinicApi.updateSettings(settings), "Clinic settings saved"); },
+    async addDoctor(doctor) { await commit(() => clinicApi.addDoctor(doctor), "Doctor added successfully"); },
+    async editDoctor(doctor) { await commit(() => clinicApi.editDoctor(doctor), "Doctor updated successfully"); },
+    async deleteDoctor(id) { await commit(() => clinicApi.deleteDoctor(id), "Doctor deleted"); },
     reset() { void load(); setNotice({ kind: "success", message: "Clinic data refreshed" }); },
     signOut() { authSession.clear(); setUser(null); setData(null); setAuthLoaded(true); },
   }), [data, user, loading, error, notice, authLoaded, commit, load]);

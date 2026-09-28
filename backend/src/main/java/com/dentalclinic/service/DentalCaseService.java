@@ -1,7 +1,6 @@
 package com.dentalclinic.service;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
-import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 import java.time.Instant;
@@ -39,11 +38,6 @@ public class DentalCaseService {
 
     @Transactional(readOnly = true)
     public List<DentalCaseResponse> findAll(Authentication authentication) {
-        if (hasRole(authentication, "PATIENT")) {
-            return dentalCaseRepository.findByPatient_IdOrderByCreatedAtDesc(currentUserId(authentication)).stream()
-                    .map(DentalCaseResponse::from)
-                    .toList();
-        }
         return dentalCaseRepository.findAll().stream()
                 .map(DentalCaseResponse::from)
                 .toList();
@@ -59,9 +53,6 @@ public class DentalCaseService {
     @Transactional(readOnly = true)
     public List<DentalCaseResponse> findByPatientId(UUID patientId, Authentication authentication) {
         requirePatient(patientId);
-        if (hasRole(authentication, "PATIENT") && !patientId.equals(currentUserId(authentication))) {
-            throw new ResponseStatusException(FORBIDDEN, "Patients can view their own cases only");
-        }
         return dentalCaseRepository.findByPatient_IdOrderByCreatedAtDesc(patientId).stream()
                 .map(DentalCaseResponse::from)
                 .toList();
@@ -140,22 +131,6 @@ public class DentalCaseService {
     }
 
     private void requireCanView(DentalCase dentalCase, Authentication authentication) {
-        if (hasRole(authentication, "PATIENT") && !dentalCase.getPatient().getId().equals(currentUserId(authentication))) {
-            throw new ResponseStatusException(FORBIDDEN, "Patients can view their own cases only");
-        }
-    }
-
-    private boolean hasRole(Authentication authentication, String role) {
-        return authentication != null && authentication.getAuthorities().stream()
-                .anyMatch(authority -> authority.getAuthority().equals("ROLE_" + role));
-    }
-
-    private UUID currentUserId(Authentication authentication) {
-        try {
-            return UUID.fromString(authentication.getName());
-        } catch (RuntimeException ex) {
-            throw new ResponseStatusException(FORBIDDEN, "Authenticated user id is invalid");
-        }
     }
 
     public record DentalCaseRequest(
